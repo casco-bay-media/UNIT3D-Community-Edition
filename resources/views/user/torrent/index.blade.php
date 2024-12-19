@@ -1,5 +1,9 @@
 @extends('layout.default')
 
+@section('title')
+    <title>{{ $user->username }} {{ __('user.uploads') }} - {{ config('other.title') }}</title>
+@endsection
+
 @section('breadcrumbs')
     <li class="breadcrumbV2">
         <a href="{{ route('users.show', ['user' => $user]) }}" class="breadcrumb__link">
