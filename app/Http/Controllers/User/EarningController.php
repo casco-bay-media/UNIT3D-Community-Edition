@@ -43,6 +43,9 @@ class EarningController extends Controller
         abort_unless($request->user()->is($user) || $request->user()->group->is_modo, 403);
 
         // These two partially-built queries are used for constructing all the other queries
+
+        //old code keeping for future
+        /*
         $distinctSeeds = Peer::query()
             ->select(['user_id', 'torrent_id', 'seeder'])
             ->where('user_id', '=', $user->id)
@@ -165,5 +168,24 @@ class EarningController extends Controller
             'legend'      => $legend,
             'total'       => $total,
         ]);
+
+        */
+
+            // Calculate total size of all torrents in GB
+    $totalSize = Peer::query()
+    ->join('torrents', 'torrents.id', '=', 'peers.torrent_id')
+    ->where('peers.user_id', '=', $user->id)
+    ->where('peers.seeder', '=', 1)
+    ->where('peers.active', '=', 1)
+    ->sum('torrents.size') / (1024 * 1024 * 1024);
+
+// Calculate total points (0.1 point per GB)
+$totalPoints = $totalSize * 0.1;
+
+return view('user.earning.index', [
+    'user' => $user,
+    'totalSize' => $totalSize,
+    'totalPoints' => $totalPoints,
+]);
     }
 }
