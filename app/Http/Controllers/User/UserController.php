@@ -38,8 +38,7 @@ class UserController extends Controller
     /**
      * Show A User.
      */
-
-     public function show(Request $request, User $user): \Illuminate\Contracts\View\Factory|\Illuminate\View\View
+        public function show(Request $request, User $user): \Illuminate\Contracts\View\Factory|\Illuminate\View\View
      {
          $user->load([
              'application',
