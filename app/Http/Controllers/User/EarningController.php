@@ -180,7 +180,7 @@ return view('user.earning.index', [
     'legend'      => $legend,
     'total'       => $total,
     'totalSize' => $totalSize,
-    'totalPoints' => $totalPoints,
+    'totalPoints' => $totalPoints
 ]);
     }
 }

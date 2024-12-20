@@ -39,193 +39,103 @@ class UserController extends Controller
      * Show A User.
      */
 
-     /* old code
-    public function show(Request $request, User $user): \Illuminate\Contracts\View\Factory|\Illuminate\View\View
-    {
-        $user->load([
-            'application',
-            'privacy',
-            'userban' => ['banneduser', 'staffuser'],
-            'tickets' => fn ($query) => $query->orderByRaw('CASE WHEN closed_at IS NULL THEN 1 ELSE 0 END DESC')->orderByDesc('id'),
-        ])
-            ->loadCount([
-                'torrents as anon_uploads_count'     => fn ($query) => $query->where('anon', '=', true),
-                'torrents as non_anon_uploads_count' => fn ($query) => $query->where('anon', '=', false),
-                'topics',
-                'posts',
-                'filledRequests' => fn ($query) => $query->whereNotNull('approved_by'),
-                'requests',
-                'userwarning as active_warnings_count'       => fn ($query) => $query->where('active', '=', 1),
-                'userwarning as auto_warnings_count'         => fn ($query) => $query->whereNotNull('torrent'),
-                'userwarning as manual_warnings_count'       => fn ($query) => $query->whereNull('torrent'),
-                'userwarning as soft_deleted_warnings_count' => fn ($query) => $query->onlyTrashed(),
-            ]);
-
-        return view('user.profile.show', [
-            'user'      => $user,
-            'followers' => $user->followers()->latest()->limit(25)->get(),
-            'history'   => DB::table('history')
-                ->where('user_id', '=', $user->id)
-                ->where('created_at', '>', $user->created_at)
-                ->selectRaw('SUM(actual_uploaded) as upload_sum')
-                ->selectRaw('SUM(uploaded) as credited_upload_sum')
-                ->selectRaw('SUM(actual_downloaded) as download_sum')
-                ->selectRaw('SUM(downloaded) as credited_download_sum')
-                ->selectRaw('SUM(refunded_download) as refunded_download_sum')
-                ->selectRaw('SUM(seedtime) as seedtime_sum')
-                ->selectRaw('SUM(actual_downloaded > 0) as download_count')
-                ->selectRaw('COUNT(*) as count')
-                ->first(),
-            'manualWarnings' => $user
-                ->userwarning()
-                ->whereNull('torrent')
-                ->latest()
-                ->paginate(10, ['*'], 'manualWarningsPage'),
-            'autoWarnings' => $user
-                ->userwarning()
-                ->whereNotNull('torrent')
-                ->latest()
-                ->paginate(10, ['*'], 'autoWarningsPage'),
-            'softDeletedWarnings' => $user
-                ->userwarning()
-                ->onlyTrashed()
-                ->with(['torrenttitle', 'warneduser'])
-                ->latest('created_at')
-                ->paginate(10, ['*'], 'deletedWarningsPage'),
-            'boughtUpload' => BonTransactions::where('sender_id', '=', $user->id)->where([['name', 'like', '%Upload%']])->sum('cost'),
-            // 'boughtDownload'        => BonTransactions::where('sender_id', '=', $user->id)->where([['name', 'like', '%Download%']])->sum('cost'),
-            'invitedBy' => Invite::where('accepted_by', '=', $user->id)->first(),
-            'clients'   => $user->peers()
-                ->join('torrents', 'torrents.id', '=', 'peers.torrent_id')
-                ->select('agent', 'port')
-                ->selectRaw('INET6_NTOA(peers.ip) as ip')
-                ->selectRaw('MIN(peers.created_at) as created_at')
-                ->selectRaw('MAX(peers.updated_at) as updated_at')
-                ->selectRaw('SUM(torrents.size) as size')
-                ->selectRaw('COUNT(*) as num_peers')
-                ->selectRaw('MAX(peers.connectable) as connectable')
-                ->groupBy(['ip', 'port', 'agent'])
-                ->where('active', '=', true)
-                ->get(),
-            'achievements' => AchievementProgress::with('details')
-                ->where('achiever_id', '=', $user->id)
-                ->whereNotNull('unlocked_at')
-                ->get(),
-            'peers' => Peer::query()
-                ->selectRaw('SUM(seeder = FALSE AND active = TRUE) as leeching')
-                ->selectRaw('SUM(seeder = TRUE AND active = TRUE) as seeding')
-                ->selectRaw('SUM(active = FALSE) as inactive')
-                ->where('user_id', '=', $user->id)
-                ->first(),
-            'watch'        => $user->watchlist,
-            'externalUser' => ! $user->trashed() && $request->user()->group->is_modo ? Unit3dAnnounce::getUser($user->id) : false,
-            'donation'     => Donation::where('status', '=', Donation::APPROVED)->where('user_id', '=', $user->id)->latest()->first(),
-        ]);
-    }
-
-    */
-    /**
-     * Show a user profile with earnings details.
-     */
-    public function show(Request $request, User $user): \Illuminate\Contracts\View\Factory|\Illuminate\View\View
-    {
-        $user->load([
-            'application',
-            'privacy',
-            'userban' => ['banneduser', 'staffuser'],
-            'tickets' => fn ($query) => $query
-                ->orderByRaw('CASE WHEN closed_at IS NULL THEN 1 ELSE 0 END DESC')
-                ->orderByDesc('id'),
-        ])
-            ->loadCount([
-                'torrents as anon_uploads_count'     => fn ($query) => $query->where('anon', '=', true),
-                'torrents as non_anon_uploads_count' => fn ($query) => $query->where('anon', '=', false),
-                'topics',
-                'posts',
-                'filledRequests' => fn ($query) => $query->whereNotNull('approved_by'),
-                'requests',
-                'userwarning as active_warnings_count'       => fn ($query) => $query->where('active', '=', 1),
-                'userwarning as auto_warnings_count'         => fn ($query) => $query->whereNotNull('torrent'),
-                'userwarning as manual_warnings_count'       => fn ($query) => $query->whereNull('torrent'),
-                'userwarning as soft_deleted_warnings_count' => fn ($query) => $query->onlyTrashed(),
-            ]);
-
-        // Fetch total size and points for seed pool
-        $totalSize = Peer::query()
-            ->join('torrents', 'torrents.id', '=', 'peers.torrent_id')
-            ->where('peers.user_id', '=', $user->id)
-            ->where('peers.seeder', '=', 1)
-            ->where('peers.active', '=', 1)
-            ->sum('torrents.size') / (1024 * 1024 * 1024);
-
-        $totalPoints = $totalSize * 0.1; // 0.1 point per GB
-
-        return view('user.profile.show', [
-            'user' => $user,
-            'followers' => $user->followers()->latest()->limit(25)->get(),
-            'totalSize' => $totalSize,
-            'totalPoints' => $totalPoints,
-            'history' => DB::table('history')
-                ->where('user_id', '=', $user->id)
-                ->where('created_at', '>', $user->created_at)
-                ->selectRaw('SUM(actual_uploaded) as upload_sum')
-                ->selectRaw('SUM(uploaded) as credited_upload_sum')
-                ->selectRaw('SUM(actual_downloaded) as download_sum')
-                ->selectRaw('SUM(downloaded) as credited_download_sum')
-                ->selectRaw('SUM(refunded_download) as refunded_download_sum')
-                ->selectRaw('SUM(seedtime) as seedtime_sum')
-                ->selectRaw('SUM(actual_downloaded > 0) as download_count')
-                ->selectRaw('COUNT(*) as count')
-                ->first(),
-            'manualWarnings' => $user
-                ->userwarning()
-                ->whereNull('torrent')
-                ->latest()
-                ->paginate(10, ['*'], 'manualWarningsPage'),
-            'autoWarnings' => $user
-                ->userwarning()
-                ->whereNotNull('torrent')
-                ->latest()
-                ->paginate(10, ['*'], 'autoWarningsPage'),
-            'softDeletedWarnings' => $user
-                ->userwarning()
-                ->onlyTrashed()
-                ->with(['torrenttitle', 'warneduser'])
-                ->latest('created_at')
-                ->paginate(10, ['*'], 'deletedWarningsPage'),
-            'boughtUpload' => DB::table('bon_transactions')
-                ->where('sender_id', '=', $user->id)
-                ->where([['name', 'like', '%Upload%']])
-                ->sum('cost'),
-            'invitedBy' => $user->invitedBy()->first(),
-            'clients' => $user->peers()
-                ->join('torrents', 'torrents.id', '=', 'peers.torrent_id')
-                ->select('agent', 'port')
-                ->selectRaw('INET6_NTOA(peers.ip) as ip')
-                ->selectRaw('MIN(peers.created_at) as created_at')
-                ->selectRaw('MAX(peers.updated_at) as updated_at')
-                ->selectRaw('SUM(torrents.size) as size')
-                ->selectRaw('COUNT(*) as num_peers')
-                ->selectRaw('MAX(peers.connectable) as connectable')
-                ->groupBy(['ip', 'port', 'agent'])
-                ->where('active', '=', true)
-                ->get(),
-            'achievements' => DB::table('achievement_progress')
-                ->join('achievement_details', 'achievement_progress.achievement_id', '=', 'achievement_details.id')
-                ->where('achiever_id', '=', $user->id)
-                ->whereNotNull('unlocked_at')
-                ->get(),
-            'peers' => DB::table('peers')
-                ->selectRaw('SUM(seeder = FALSE AND active = TRUE) as leeching')
-                ->selectRaw('SUM(seeder = TRUE AND active = TRUE) as seeding')
-                ->selectRaw('SUM(active = FALSE) as inactive')
-                ->where('user_id', '=', $user->id)
-                ->first(),
-        ]);
-    }
-}
-
-
+     public function show(Request $request, User $user): \Illuminate\Contracts\View\Factory|\Illuminate\View\View
+     {
+         $user->load([
+             'application',
+             'privacy',
+             'userban' => ['banneduser', 'staffuser'],
+             'tickets' => fn ($query) => $query
+                 ->orderByRaw('CASE WHEN closed_at IS NULL THEN 1 ELSE 0 END DESC')
+                 ->orderByDesc('id'),
+         ])
+             ->loadCount([
+                 'torrents as anon_uploads_count'     => fn ($query) => $query->where('anon', '=', true),
+                 'torrents as non_anon_uploads_count' => fn ($query) => $query->where('anon', '=', false),
+                 'topics',
+                 'posts',
+                 'filledRequests' => fn ($query) => $query->whereNotNull('approved_by'),
+                 'requests',
+                 'userwarning as active_warnings_count'       => fn ($query) => $query->where('active', '=', 1),
+                 'userwarning as auto_warnings_count'         => fn ($query) => $query->whereNotNull('torrent'),
+                 'userwarning as manual_warnings_count'       => fn ($query) => $query->whereNull('torrent'),
+                 'userwarning as soft_deleted_warnings_count' => fn ($query) => $query->onlyTrashed(),
+             ]);
+ 
+         // Fetch total size and points for seed pool
+         $totalSize = Peer::query()
+             ->join('torrents', 'torrents.id', '=', 'peers.torrent_id')
+             ->where('peers.user_id', '=', $user->id)
+             ->where('peers.seeder', '=', 1)
+             ->where('peers.active', '=', 1)
+             ->sum('torrents.size') / (1024 * 1024 * 1024);
+ 
+         $totalPoints = $totalSize * 0.1; // 0.1 point per GB
+ 
+         return view('user.profile.show', [
+             'user' => $user,
+             'followers' => $user->followers()->latest()->limit(25)->get(),
+             'totalSize' => $totalSize,
+             'totalPoints' => $totalPoints,
+             'history' => DB::table('history')
+                 ->where('user_id', '=', $user->id)
+                 ->where('created_at', '>', $user->created_at)
+                 ->selectRaw('SUM(actual_uploaded) as upload_sum')
+                 ->selectRaw('SUM(uploaded) as credited_upload_sum')
+                 ->selectRaw('SUM(actual_downloaded) as download_sum')
+                 ->selectRaw('SUM(downloaded) as credited_download_sum')
+                 ->selectRaw('SUM(refunded_download) as refunded_download_sum')
+                 ->selectRaw('SUM(seedtime) as seedtime_sum')
+                 ->selectRaw('SUM(actual_downloaded > 0) as download_count')
+                 ->selectRaw('COUNT(*) as count')
+                 ->first(),
+             'manualWarnings' => $user
+                 ->userwarning()
+                 ->whereNull('torrent')
+                 ->latest()
+                 ->paginate(10, ['*'], 'manualWarningsPage'),
+             'autoWarnings' => $user
+                 ->userwarning()
+                 ->whereNotNull('torrent')
+                 ->latest()
+                 ->paginate(10, ['*'], 'autoWarningsPage'),
+             'softDeletedWarnings' => $user
+                 ->userwarning()
+                 ->onlyTrashed()
+                 ->with(['torrenttitle', 'warneduser'])
+                 ->latest('created_at')
+                 ->paginate(10, ['*'], 'deletedWarningsPage'),
+             'boughtUpload' => DB::table('bon_transactions')
+                 ->where('sender_id', '=', $user->id)
+                 ->where([['name', 'like', '%Upload%']])
+                 ->sum('cost'),
+             'invitedBy' => $user->invitedBy()->first(),
+             'clients' => $user->peers()
+                 ->join('torrents', 'torrents.id', '=', 'peers.torrent_id')
+                 ->select('agent', 'port')
+                 ->selectRaw('INET6_NTOA(peers.ip) as ip')
+                 ->selectRaw('MIN(peers.created_at) as created_at')
+                 ->selectRaw('MAX(peers.updated_at) as updated_at')
+                 ->selectRaw('SUM(torrents.size) as size')
+                 ->selectRaw('COUNT(*) as num_peers')
+                 ->selectRaw('MAX(peers.connectable) as connectable')
+                 ->groupBy(['ip', 'port', 'agent'])
+                 ->where('active', '=', true)
+                 ->get(),
+             'achievements' => DB::table('achievement_progress')
+                 ->join('achievement_details', 'achievement_progress.achievement_id', '=', 'achievement_details.id')
+                 ->where('achiever_id', '=', $user->id)
+                 ->whereNotNull('unlocked_at')
+                 ->get(),
+             'peers' => DB::table('peers')
+                 ->selectRaw('SUM(seeder = FALSE AND active = TRUE) as leeching')
+                 ->selectRaw('SUM(seeder = TRUE AND active = TRUE) as seeding')
+                 ->selectRaw('SUM(active = FALSE) as inactive')
+                 ->where('user_id', '=', $user->id)
+                 ->first(),
+         ]);
+     }
+ }
     /**
      * Edit Profile Form.
      */
