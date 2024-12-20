@@ -45,7 +45,6 @@ class EarningController extends Controller
         // These two partially-built queries are used for constructing all the other queries
 
         //old code keeping for future
-        /*
         $distinctSeeds = Peer::query()
             ->select(['user_id', 'torrent_id', 'seeder'])
             ->where('user_id', '=', $user->id)
@@ -152,24 +151,6 @@ class EarningController extends Controller
             + 1.00 * $mvp
             + 2.00 * $legend;
 
-        return view('user.earning.index', [
-            'user'        => $user,
-            'bon'         => $user->formatted_seedbonus,
-            'dying'       => $dying,
-            'legendary'   => $legendary,
-            'old'         => $old,
-            'huge'        => $huge,
-            'large'       => $large,
-            'regular'     => $regular,
-            'participant' => $participant,
-            'teamplayer'  => $teamplayer,
-            'committed'   => $committed,
-            'mvp'         => $mvp,
-            'legend'      => $legend,
-            'total'       => $total,
-        ]);
-
-        */
 
             // Calculate total size of all torrents in GB
     $totalSize = Peer::query()
@@ -182,8 +163,22 @@ class EarningController extends Controller
 // Calculate total points (0.1 point per GB)
 $totalPoints = $totalSize * 0.1;
 
+
 return view('user.earning.index', [
-    'user' => $user,
+    'user'        => $user,
+    'bon'         => $user->formatted_seedbonus,
+    'dying'       => $dying,
+    'legendary'   => $legendary,
+    'old'         => $old,
+    'huge'        => $huge,
+    'large'       => $large,
+    'regular'     => $regular,
+    'participant' => $participant,
+    'teamplayer'  => $teamplayer,
+    'committed'   => $committed,
+    'mvp'         => $mvp,
+    'legend'      => $legend,
+    'total'       => $total,
     'totalSize' => $totalSize,
     'totalPoints' => $totalPoints,
 ]);
